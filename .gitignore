@@ -1,0 +1,12 @@
+target/
+.anchor/
+node_modules/
+app/.next/
+app/node_modules/
+.env
+.env.local
+test-ledger/
+*.log
+.DS_Store
+.yarn/
+**/*.rs.bk
