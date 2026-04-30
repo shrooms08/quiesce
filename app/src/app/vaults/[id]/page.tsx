@@ -1,80 +1,112 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { PublicKey } from "@solana/web3.js";
 import { TopBar } from "@/components/chrome/TopBar";
 import { BackLink } from "@/components/chrome/BackLink";
 import { Pip } from "@/components/chrome/Pip";
-import { fmtUSD } from "@/lib/format";
+import { fmtUSD, truncateAddress } from "@/lib/format";
+import { MOCK_PUSD_DECIMALS, MOCK_PUSD_MINT } from "@/lib/constants";
+import { useQuiesceProgram } from "@/hooks/useQuiesceProgram";
+import { useVault } from "@/hooks/useVault";
+import { useUserPusdBalance } from "@/hooks/useUserPusdBalance";
+import type { OnChainVault } from "@/hooks/useUserVaults";
+import { buildHeartbeatTx } from "@/lib/transactions/heartbeat";
+import { buildCancelTx } from "@/lib/transactions/cancel";
 
-const ACTIVITY = [
-  {
-    date: "April 29, 2026",
-    time: "12:04 PM PT",
-    event: "Heartbeat check-in",
-    actor: "0xA1B2…F4D9",
-    note: "Tx confirmed at slot 287,418,392",
-  },
-  {
-    date: "March 30, 2026",
-    time: "09:17 AM PT",
-    event: "Heartbeat check-in",
-    actor: "0xA1B2…F4D9",
-    note: "Tx confirmed at slot 282,104,008",
-  },
-  {
-    date: "February 28, 2026",
-    time: "07:42 PM PT",
-    event: "Heartbeat check-in",
-    actor: "0xA1B2…F4D9",
-    note: "Tx confirmed at slot 276,801,221",
-  },
-  {
-    date: "January 30, 2026",
-    time: "11:55 AM PT",
-    event: "Heartbeat check-in",
-    actor: "0xA1B2…F4D9",
-    note: "Tx confirmed at slot 271,514,440",
-  },
-  {
-    date: "January 02, 2026",
-    time: "03:20 PM PT",
-    event: "Beneficiary contact updated",
-    actor: "0xA1B2…F4D9",
-    note: "Email changed",
-  },
-  {
-    date: "December 12, 2025",
-    time: "10:08 AM PT",
-    event: "Vault deployed",
-    actor: "0xA1B2…F4D9",
-    note: "184,320.00 PUSD deposited",
-  },
-];
+const PUSD_SCALE = 10 ** MOCK_PUSD_DECIMALS;
+
+type ActionState =
+  | { kind: "idle" }
+  | { kind: "running"; label: string }
+  | { kind: "error"; message: string };
+
+function fmtDateLong(unixSec: number): string {
+  return new Date(unixSec * 1000).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function fmtDateLongTime(unixSec: number): string {
+  const d = new Date(unixSec * 1000);
+  const date = d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${date} · ${time}`;
+}
+
+function intervalLabel(seconds: number): string {
+  if (seconds >= 86400) {
+    const d = Math.round(seconds / 86400);
+    return `${d} ${d === 1 ? "day" : "days"}`;
+  }
+  if (seconds >= 3600) {
+    const h = Math.round(seconds / 3600);
+    return `${h} ${h === 1 ? "hour" : "hours"}`;
+  }
+  if (seconds >= 60) {
+    const m = Math.round(seconds / 60);
+    return `${m} ${m === 1 ? "minute" : "minutes"}`;
+  }
+  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
+}
 
 function VaultClock({
   progress,
   lastCheckin,
   nextDue,
   now,
-  intervalDays,
+  intervalSec,
+  triggered,
 }: {
   progress: number;
   lastCheckin: Date;
   nextDue: Date;
   now: Date;
-  intervalDays: number;
+  intervalSec: number;
+  triggered: boolean;
 }) {
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  const daysLeft = Math.ceil((nextDue.getTime() - now.getTime()) / 86400000);
+  const remainingSec = Math.max(
+    0,
+    Math.floor((nextDue.getTime() - now.getTime()) / 1000)
+  );
+
+  let bigUnit: string;
+  let bigValue: string;
+  if (intervalSec >= 86400) {
+    bigUnit = "Days remaining until trigger";
+    bigValue = String(Math.ceil(remainingSec / 86400));
+  } else if (intervalSec >= 3600) {
+    bigUnit = "Hours remaining";
+    bigValue = String(Math.ceil(remainingSec / 3600));
+  } else if (intervalSec >= 60) {
+    bigUnit = "Minutes remaining";
+    bigValue = String(Math.ceil(remainingSec / 60));
+  } else {
+    bigUnit = "Seconds remaining";
+    bigValue = String(remainingSec);
+  }
+  if (triggered) bigValue = "0";
+
+  const trackBg = triggered ? "var(--accent)" : "var(--ink)";
 
   return (
     <div>
       <div style={{ position: "relative", padding: "44px 0 56px" }}>
-        <div style={{ position: "relative", height: 1, background: "var(--rule-2)" }}>
+        <div
+          style={{ position: "relative", height: 1, background: "var(--rule-2)" }}
+        >
           <div
             style={{
               position: "absolute",
@@ -82,7 +114,7 @@ function VaultClock({
               top: 0,
               height: 1,
               width: `${progress * 100}%`,
-              background: "var(--ink)",
+              background: trackBg,
             }}
           />
           <div
@@ -92,7 +124,7 @@ function VaultClock({
               top: -5,
               width: 10,
               height: 10,
-              background: "var(--ink)",
+              background: trackBg,
               transform: "translateX(-50%)",
             }}
           />
@@ -113,8 +145,8 @@ function VaultClock({
               top: -5,
               width: 10,
               height: 10,
-              background: "var(--paper)",
-              border: "1px solid var(--ink)",
+              background: triggered ? trackBg : "var(--paper)",
+              border: `1px solid ${triggered ? trackBg : "var(--ink)"}`,
             }}
           />
         </div>
@@ -123,46 +155,33 @@ function VaultClock({
           style={{
             position: "absolute",
             left: 0,
-            top: 0,
-            fontSize: 11,
-            color: "var(--ink-3)",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-          }}
-        >
-          Last check-in
-        </div>
-        <div
-          style={{
-            position: "absolute",
             right: 0,
             top: 0,
-            fontSize: 11,
-            color: "var(--ink-3)",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            textAlign: "right",
+            display: "flex",
+            justifyContent: "space-between",
           }}
         >
-          Trigger
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--ink-3)",
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
+            Last check-in
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: triggered ? "var(--accent)" : "var(--ink-3)",
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
+            {triggered ? "Triggered" : "Trigger"}
+          </div>
         </div>
-        <div
-          style={{ position: "absolute", left: 0, bottom: 0, fontSize: 12.5 }}
-        >
-          <span className="tnum">{fmt(lastCheckin)}</span>
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            fontSize: 12.5,
-            textAlign: "right",
-          }}
-        >
-          <span className="tnum">{fmt(nextDue)}</span>
-        </div>
-
         <div
           style={{
             position: "absolute",
@@ -185,8 +204,32 @@ function VaultClock({
             Now
           </div>
           <div className="tnum" style={{ fontSize: 12.5 }}>
-            {fmt(now)}
+            {now.toLocaleString("en-US", {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            })}
           </div>
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span className="tnum" style={{ fontSize: 12.5 }}>
+            {fmtDateLong(Math.floor(lastCheckin.getTime() / 1000))}
+          </span>
+          <span className="tnum" style={{ fontSize: 12.5 }}>
+            {fmtDateLong(Math.floor(nextDue.getTime() / 1000))}
+          </span>
         </div>
       </div>
 
@@ -201,22 +244,23 @@ function VaultClock({
         }}
       >
         <div>
-          <div className="meta">Days remaining until trigger</div>
+          <div className="meta">{bigUnit}</div>
           <div
             className="serif tnum"
             style={{
               fontSize: 32,
               letterSpacing: "-0.012em",
               marginTop: 4,
+              color: triggered ? "var(--accent)" : "var(--ink)",
             }}
           >
-            {daysLeft}
+            {bigValue}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div className="meta">Interval</div>
           <div className="tnum" style={{ fontSize: 16, marginTop: 4 }}>
-            {intervalDays} days
+            {intervalLabel(intervalSec)}
           </div>
         </div>
       </div>
@@ -225,14 +269,205 @@ function VaultClock({
 }
 
 export default function VaultDetailPage() {
-  const lastCheckin = new Date("2026-04-29T19:04:00Z");
-  const intervalDays = 90;
-  const nextDue = new Date(
-    lastCheckin.getTime() + intervalDays * 86400 * 1000
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? null;
+  const router = useRouter();
+  const { program, connection, wallet } = useQuiesceProgram();
+  const { vault, isLoading, notFound, refresh } = useVault(id);
+  const { refresh: refreshPusd } = useUserPusdBalance();
+
+  // Live ticking clock
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const [action, setAction] = useState<ActionState>({ kind: "idle" });
+
+  const derived = useMemo(() => {
+    if (!vault) return null;
+    const lastHeartbeat = Number(vault.lastHeartbeat);
+    const intervalSec = Number(vault.heartbeatInterval);
+    const expirySec = lastHeartbeat + intervalSec;
+    const nowSec = Math.floor(nowMs / 1000);
+    const remainingSec = expirySec - nowSec;
+    const elapsedSec = nowSec - lastHeartbeat;
+    const progress = Math.min(1, Math.max(0, elapsedSec / intervalSec));
+    return {
+      lastHeartbeat,
+      intervalSec,
+      expirySec,
+      remainingSec,
+      progress,
+      lastCheckinDate: new Date(lastHeartbeat * 1000),
+      nextDueDate: new Date(expirySec * 1000),
+      nowDate: new Date(nowMs),
+      triggered: vault.status === "active" && remainingSec <= 0,
+      heartbeatValid: vault.status === "active" && remainingSec > 0,
+    };
+  }, [vault, nowMs]);
+
+  const ownerIsViewer =
+    !!vault && !!wallet?.address && vault.owner.toBase58() === wallet.address;
+
+  // ----------------- actions -----------------
+
+  async function signAndSend(tx: import("@solana/web3.js").Transaction) {
+    if (!wallet) throw new Error("Wallet not available.");
+    const serialized = tx.serialize({ requireAllSignatures: false });
+    const result = await wallet.signTransaction({
+      transaction: new Uint8Array(serialized),
+      chain: "solana:devnet",
+    });
+    const signature = await connection.sendRawTransaction(
+      result.signedTransaction,
+      { skipPreflight: false }
+    );
+    const latest = await connection.getLatestBlockhash();
+    await connection.confirmTransaction(
+      { signature, ...latest },
+      "confirmed"
+    );
+    return signature;
+  }
+
+  async function handleCheckIn() {
+    if (!program || !wallet?.address || !vault) return;
+    setAction({ kind: "running", label: "Building transaction…" });
+    try {
+      const owner = new PublicKey(wallet.address);
+      const tx = await buildHeartbeatTx({
+        program,
+        connection,
+        owner,
+        vaultPda: vault.publicKey,
+      });
+      setAction({ kind: "running", label: "Awaiting signature…" });
+      await signAndSend(tx);
+      setAction({ kind: "running", label: "Confirmed. Refreshing…" });
+      refresh();
+      setTimeout(() => setAction({ kind: "idle" }), 800);
+    } catch (e) {
+      setAction({
+        kind: "error",
+        message: `Check-in failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      });
+    }
+  }
+
+  async function handleCancel() {
+    if (!program || !wallet?.address || !vault) return;
+    const ok = window.confirm(
+      "Cancel this vault and return funds to your wallet? This cannot be undone."
+    );
+    if (!ok) return;
+
+    setAction({ kind: "running", label: "Building transaction…" });
+    try {
+      const owner = new PublicKey(wallet.address);
+      const tx = await buildCancelTx({
+        program,
+        connection,
+        owner,
+        vaultPda: vault.publicKey,
+        mint: new PublicKey(MOCK_PUSD_MINT),
+      });
+      setAction({ kind: "running", label: "Awaiting signature…" });
+      await signAndSend(tx);
+      refreshPusd();
+      router.push("/dashboard");
+    } catch (e) {
+      setAction({
+        kind: "error",
+        message: `Cancel failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      });
+    }
+  }
+
+  // ----------------- render -----------------
+
+  if (notFound) {
+    return (
+      <div data-screen-label="Vault not found">
+        <TopBar mode="app" />
+        <div className="shell" style={{ paddingBottom: 80 }}>
+          <div style={{ paddingTop: 32 }}>
+            <BackLink>Back to vaults</BackLink>
+          </div>
+          <div
+            style={{
+              padding: "120px 0",
+              borderBottom: "1px solid var(--rule)",
+            }}
+          >
+            <div className="h-section" style={{ marginBottom: 14 }}>
+              Vault not found
+            </div>
+            <div className="h-1" style={{ marginBottom: 18 }}>
+              No vault exists at that address.
+            </div>
+            <p className="body" style={{ marginBottom: 24 }}>
+              The vault may have never been deployed, or the address in the URL
+              is malformed.
+            </p>
+            <Link href="/dashboard" className="btn">
+              Back to vaults
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || !vault || !derived) {
+    return (
+      <div data-screen-label="Vault detail">
+        <TopBar mode="app" />
+        <div className="shell" style={{ paddingBottom: 80 }}>
+          <div style={{ paddingTop: 32 }}>
+            <BackLink>Back to vaults</BackLink>
+          </div>
+          <div className="meta" style={{ padding: "80px 0" }}>
+            Loading vault from Solana devnet…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const amountPusd = Number(vault.amount) / PUSD_SCALE;
+  const beneficiaryAddrFull = vault.beneficiary.toBase58();
+  const pdaShort = truncateAddress(vault.publicKey.toBase58());
+
+  // status header
+  let pipStatus: "armed" | "warning" | "released" | "dormant";
+  let pipLabel: string;
+  if (vault.status === "active") {
+    if (derived.triggered) {
+      pipStatus = "warning";
+      pipLabel = "Triggered";
+    } else {
+      pipStatus = "armed";
+      pipLabel = "Armed";
+    }
+  } else if (vault.status === "claimed") {
+    pipStatus = "released";
+    pipLabel = "Released";
+  } else {
+    pipStatus = "dormant";
+    pipLabel = "Cancelled";
+  }
+
+  const createdSec = Number(vault.createdAt);
+  const daysSinceCreated = Math.max(
+    0,
+    Math.floor((Math.floor(nowMs / 1000) - createdSec) / 86400)
   );
-  const now = new Date("2026-04-30T00:00:00Z");
-  const elapsed = (now.getTime() - lastCheckin.getTime()) / 86400000;
-  const progress = Math.min(1, Math.max(0, elapsed / intervalDays));
 
   return (
     <div data-screen-label="Vault detail">
@@ -243,6 +478,7 @@ export default function VaultDetailPage() {
           <BackLink>Back to vaults</BackLink>
         </div>
 
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -254,15 +490,16 @@ export default function VaultDetailPage() {
         >
           <div>
             <div className="h-section" style={{ marginBottom: 14 }}>
-              Vault · v-aliyah · QSCe…7nWq
+              Vault · #{vault.vaultId.toString()} · {pdaShort}
             </div>
-            <div className="h-1">Aliyah — primary inheritance</div>
+            <div className="h-1">{vault.name || `Vault #${vault.vaultId.toString()}`}</div>
             <div
               style={{ marginTop: 16, display: "flex", gap: 24, alignItems: "center" }}
             >
-              <Pip status="armed">Armed</Pip>
+              <Pip status={pipStatus}>{pipLabel}</Pip>
               <span className="meta">
-                Deployed December 12, 2025 · 139 days ago
+                Deployed {fmtDateLong(createdSec)} ·{" "}
+                {daysSinceCreated} {daysSinceCreated === 1 ? "day" : "days"} ago
               </span>
             </div>
           </div>
@@ -274,7 +511,7 @@ export default function VaultDetailPage() {
               className="serif tnum"
               style={{ fontSize: 40, letterSpacing: "-0.018em" }}
             >
-              {fmtUSD(184320.0)}
+              {fmtUSD(amountPusd)}
             </div>
             <div className="meta" style={{ marginTop: 4 }}>
               PUSD · non-freezable
@@ -282,18 +519,55 @@ export default function VaultDetailPage() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 64,
-            padding: "48px 0",
-            borderBottom: "1px solid var(--rule)",
-          }}
-        >
-          <div>
+        {/* Two columns: condition logic + clock (only for Active state) */}
+        {vault.status === "active" && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 64,
+              padding: "48px 0",
+              borderBottom: "1px solid var(--rule)",
+            }}
+          >
+            <ConditionColumn
+              vault={vault}
+              triggered={derived.triggered}
+              heartbeatValid={derived.heartbeatValid}
+              ownerIsViewer={ownerIsViewer}
+              action={action}
+              onCheckIn={handleCheckIn}
+              onCancel={handleCancel}
+              intervalSec={derived.intervalSec}
+              beneficiary={beneficiaryAddrFull}
+              amountPusd={amountPusd}
+            />
+
+            <div>
+              <div className="h-section" style={{ marginBottom: 16 }}>
+                Heartbeat clock
+              </div>
+              <VaultClock
+                progress={derived.progress}
+                lastCheckin={derived.lastCheckinDate}
+                nextDue={derived.nextDueDate}
+                now={derived.nowDate}
+                intervalSec={derived.intervalSec}
+                triggered={derived.triggered}
+              />
+            </div>
+          </div>
+        )}
+
+        {vault.status === "claimed" && (
+          <div
+            style={{
+              padding: "48px 0",
+              borderBottom: "1px solid var(--rule)",
+            }}
+          >
             <div className="h-section" style={{ marginBottom: 16 }}>
-              Condition
+              Released
             </div>
             <div
               className="serif"
@@ -301,59 +575,46 @@ export default function VaultDetailPage() {
                 fontSize: 22,
                 lineHeight: 1.45,
                 color: "var(--ink)",
-                maxWidth: "44ch",
+                maxWidth: "62ch",
               }}
             >
-              If{" "}
-              <span style={{ borderBottom: "1px dotted var(--ink-3)" }}>
-                90 consecutive days
-              </span>{" "}
-              pass without a check-in, release{" "}
-              <span className="tnum">100%</span> of the balance to{" "}
+              This vault was claimed.{" "}
+              <span className="tnum">{fmtUSD(amountPusd)} PUSD</span> released
+              to{" "}
               <span className="addr" style={{ fontSize: 17 }}>
-                0xA1B2…F4D9
+                {truncateAddress(beneficiaryAddrFull)}
               </span>
-              , designated <em style={{ fontStyle: "italic" }}>Aliyah Okafor</em>.
-            </div>
-            <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
-              <button
-                className="btn btn-accent"
-                onClick={() => console.log("Check in (mock)")}
-              >
-                Check in
-              </button>
-              <button
-                className="btn-ghost btn"
-                onClick={() => console.log("Modify (mock)")}
-              >
-                Modify
-              </button>
-              <button
-                className="btn-quiet"
-                onClick={() => console.log("Cancel vault (mock)")}
-              >
-                Cancel vault
-              </button>
-            </div>
-            <div className="meta" style={{ marginTop: 18, maxWidth: "48ch" }}>
-              Check-in is a single signed transaction. Network fee ≈ 0.00005 SOL.
+              .
             </div>
           </div>
+        )}
 
-          <div>
+        {vault.status === "cancelled" && (
+          <div
+            style={{
+              padding: "48px 0",
+              borderBottom: "1px solid var(--rule)",
+            }}
+          >
             <div className="h-section" style={{ marginBottom: 16 }}>
-              Heartbeat clock
+              Cancelled
             </div>
-            <VaultClock
-              progress={progress}
-              lastCheckin={lastCheckin}
-              nextDue={nextDue}
-              now={now}
-              intervalDays={intervalDays}
-            />
+            <div
+              className="serif"
+              style={{
+                fontSize: 22,
+                lineHeight: 1.45,
+                color: "var(--ink)",
+                maxWidth: "62ch",
+              }}
+            >
+              This vault was cancelled by the owner. Funds were returned to the
+              owner&apos;s wallet.
+            </div>
           </div>
-        </div>
+        )}
 
+        {/* Definition list — vault parameters */}
         <div
           style={{
             display: "grid",
@@ -368,16 +629,10 @@ export default function VaultDetailPage() {
               Beneficiary
             </div>
             <dl className="dl" style={{ gridTemplateColumns: "150px 1fr" }}>
-              <dt>Label</dt>
-              <dd>Aliyah Okafor</dd>
               <dt>Address</dt>
-              <dd className="addr" style={{ fontSize: 13 }}>
-                0xA1B2C3D4E5F60718293A4B5C6D7E8F9012F4D9
+              <dd className="addr" style={{ fontSize: 13, wordBreak: "break-all" }}>
+                {beneficiaryAddrFull}
               </dd>
-              <dt>Notification</dt>
-              <dd>aliyah@example.com</dd>
-              <dt>Notice on release</dt>
-              <dd>Email + on-chain memo</dd>
             </dl>
           </div>
           <div>
@@ -386,11 +641,11 @@ export default function VaultDetailPage() {
             </div>
             <dl className="dl" style={{ gridTemplateColumns: "180px 1fr" }}>
               <dt>Trigger</dt>
-              <dd>Missed heartbeat · 90 days</dd>
+              <dd>Missed heartbeat · {intervalLabel(derived.intervalSec)}</dd>
               <dt>Last check-in</dt>
-              <dd className="tnum">April 29, 2026 · 12:04 PM PT</dd>
+              <dd className="tnum">{fmtDateLongTime(derived.lastHeartbeat)}</dd>
               <dt>Next required by</dt>
-              <dd className="tnum">July 28, 2026 · 12:04 PM PT</dd>
+              <dd className="tnum">{fmtDateLongTime(derived.expirySec)}</dd>
               <dt>Release fraction</dt>
               <dd className="tnum">100%</dd>
               <dt>Reversibility</dt>
@@ -399,57 +654,188 @@ export default function VaultDetailPage() {
           </div>
         </div>
 
+        {/* Activity log: minimal — we don't index events yet, so just show creation */}
         <div style={{ padding: "48px 0 0" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: 18,
-            }}
-          >
-            <div className="h-section">Activity</div>
-            <a
-              href="#"
-              className="meta"
-              style={{ color: "var(--ink-2)", textDecoration: "none" }}
-            >
-              Export →
-            </a>
+          <div className="h-section" style={{ marginBottom: 18 }}>
+            Activity
           </div>
           <table className="table">
             <thead>
               <tr>
                 <th style={{ width: 200 }}>Date</th>
                 <th>Event</th>
-                <th>Actor</th>
                 <th>Reference</th>
               </tr>
             </thead>
             <tbody>
-              {ACTIVITY.map((a, i) => (
-                <tr key={i}>
-                  <td>
-                    <div className="tnum" style={{ fontSize: 14 }}>
-                      {a.date}
-                    </div>
-                    <div className="meta" style={{ marginTop: 4 }}>
-                      {a.time}
-                    </div>
-                  </td>
-                  <td>{a.event}</td>
-                  <td>
-                    <span className="addr">{a.actor}</span>
-                  </td>
-                  <td>
-                    <span className="meta">{a.note}</span>
-                  </td>
-                </tr>
-              ))}
+              <tr>
+                <td>
+                  <div className="tnum" style={{ fontSize: 14 }}>
+                    {fmtDateLongTime(derived.lastHeartbeat)}
+                  </div>
+                </td>
+                <td>Last heartbeat recorded</td>
+                <td>
+                  <span className="meta">
+                    On-chain timestamp from program state
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="tnum" style={{ fontSize: 14 }}>
+                    {fmtDateLongTime(createdSec)}
+                  </div>
+                </td>
+                <td>Vault deployed</td>
+                <td>
+                  <span className="meta">
+                    {fmtUSD(amountPusd)} PUSD escrowed under PDA{" "}
+                    {truncateAddress(vault.publicKey.toBase58())}
+                  </span>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ConditionColumn({
+  vault,
+  triggered,
+  heartbeatValid,
+  ownerIsViewer,
+  action,
+  onCheckIn,
+  onCancel,
+  intervalSec,
+  beneficiary,
+  amountPusd,
+}: {
+  vault: OnChainVault;
+  triggered: boolean;
+  heartbeatValid: boolean;
+  ownerIsViewer: boolean;
+  action: ActionState;
+  onCheckIn: () => void;
+  onCancel: () => void;
+  intervalSec: number;
+  beneficiary: string;
+  amountPusd: number;
+}) {
+  const running = action.kind === "running";
+  const showActions = ownerIsViewer && heartbeatValid;
+
+  return (
+    <div>
+      <div className="h-section" style={{ marginBottom: 16 }}>
+        Condition
+      </div>
+      {triggered ? (
+        <div
+          className="serif"
+          style={{
+            fontSize: 22,
+            lineHeight: 1.45,
+            color: "var(--ink)",
+            maxWidth: "44ch",
+          }}
+        >
+          Heartbeat expired. Anyone may now release{" "}
+          <span className="tnum">{fmtUSD(amountPusd)} PUSD</span> to{" "}
+          <span className="addr" style={{ fontSize: 17 }}>
+            {truncateAddress(beneficiary)}
+          </span>
+          .
+        </div>
+      ) : (
+        <div
+          className="serif"
+          style={{
+            fontSize: 22,
+            lineHeight: 1.45,
+            color: "var(--ink)",
+            maxWidth: "44ch",
+          }}
+        >
+          If{" "}
+          <span style={{ borderBottom: "1px dotted var(--ink-3)" }}>
+            {intervalLabel(intervalSec)}
+          </span>{" "}
+          pass without a check-in, release{" "}
+          <span className="tnum">100%</span> of the balance to{" "}
+          <span className="addr" style={{ fontSize: 17 }}>
+            {truncateAddress(beneficiary)}
+          </span>
+          .
+        </div>
+      )}
+
+      {showActions && (
+        <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            className="btn btn-accent"
+            onClick={onCheckIn}
+            disabled={running}
+            style={{ opacity: running ? 0.6 : 1 }}
+          >
+            {running && action.label.startsWith("Awaiting") ? "Awaiting…" : "Check in"}
+          </button>
+          <button
+            className="btn-quiet"
+            onClick={onCancel}
+            disabled={running}
+            style={{ opacity: running ? 0.6 : 1 }}
+          >
+            Cancel vault
+          </button>
+        </div>
+      )}
+
+      {triggered && (
+        <div className="meta" style={{ marginTop: 18, maxWidth: "48ch" }}>
+          If you are the beneficiary, claim from the dedicated claim link.
+        </div>
+      )}
+
+      {!triggered && showActions && (
+        <div className="meta" style={{ marginTop: 18, maxWidth: "48ch" }}>
+          Check-in is a single signed transaction. Network fee ≈ 0.000005 SOL.
+        </div>
+      )}
+
+      {action.kind === "running" && (
+        <div className="meta" style={{ marginTop: 14 }}>
+          {action.label}
+        </div>
+      )}
+      {action.kind === "error" && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "10px 14px",
+            border: "1px solid var(--rule-2)",
+            borderLeft: "3px solid var(--accent)",
+            background: "var(--paper-2)",
+            fontSize: 13,
+            color: "var(--ink)",
+            whiteSpace: "pre-wrap",
+            maxWidth: "60ch",
+          }}
+        >
+          {action.message}
+        </div>
+      )}
+
+      {!ownerIsViewer && vault.status === "active" && !triggered && (
+        <div className="meta" style={{ marginTop: 18, maxWidth: "48ch" }}>
+          You are not the owner of this vault. Owner actions (check in, cancel)
+          are unavailable.
+        </div>
+      )}
     </div>
   );
 }

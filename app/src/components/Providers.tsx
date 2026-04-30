@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import type { ReactNode } from "react";
 import { SOLANA_RPC_URL } from "@/lib/constants";
 
@@ -14,6 +15,15 @@ if (!PRIVY_APP_ID) {
 }
 
 const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || SOLANA_RPC_URL;
+const WSS_URL = RPC_URL.replace(/^http/, "ws");
+
+const solanaDevnetRpcs = {
+  "solana:devnet": {
+    rpc: createSolanaRpc(RPC_URL),
+    rpcSubscriptions: createSolanaRpcSubscriptions(WSS_URL),
+    blockExplorerUrl: "https://explorer.solana.com?cluster=devnet",
+  },
+};
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -33,7 +43,7 @@ export function Providers({ children }: { children: ReactNode }) {
         externalWallets: {
           solana: { connectors: toSolanaWalletConnectors() },
         },
-        solanaClusters: [{ name: "devnet", rpcUrl: RPC_URL }],
+        solana: { rpcs: solanaDevnetRpcs },
       }}
     >
       {children}

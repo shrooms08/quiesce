@@ -6,14 +6,17 @@ import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { TopBar } from "@/components/chrome/TopBar";
 import { PageHeader } from "@/components/chrome/PageHeader";
 import { Pip, type PipStatus } from "@/components/chrome/Pip";
+import { FaucetBanner } from "@/components/FaucetBanner";
 import { fmtUSD, truncateAddress } from "@/lib/format";
-import { QUIESCE_PROGRAM_ID } from "@/lib/constants";
-import { useQuiesceProgram } from "@/hooks/useQuiesceProgram";
+import { MOCK_PUSD_DECIMALS } from "@/lib/constants";
+import { useUserVaults, type OnChainVault } from "@/hooks/useUserVaults";
+import { useUserPusdBalance } from "@/hooks/useUserPusdBalance";
 
-type Vault = {
-  id: string;
+type DisplayVault = {
+  key: string;
+  vaultId: string;
   name: string;
-  beneficiary: { label: string; addr: string };
+  beneficiaryAddr: string;
   amount: number;
   condition: string;
   status: PipStatus;
@@ -22,74 +25,76 @@ type Vault = {
   nextDays: number | null;
 };
 
-const VAULTS: Vault[] = [
-  {
-    id: "v-aliyah",
-    name: "Aliyah — primary inheritance",
-    beneficiary: { label: "Aliyah Okafor", addr: "0xA1B2…F4D9" },
-    amount: 184320.0,
-    condition: "Heartbeat · 90 days",
-    status: "armed",
-    statusLabel: "Armed",
-    nextAction: "Check in by May 28, 2026",
-    nextDays: 29,
-  },
-  {
-    id: "v-trust-2027",
-    name: "Family trust — 2027 distribution",
-    beneficiary: { label: "Three beneficiaries", addr: "Multi" },
-    amount: 1250000.0,
-    condition: "Date · January 1, 2027",
-    status: "dormant",
-    statusLabel: "Dormant",
-    nextAction: "—",
-    nextDays: null,
-  },
-  {
-    id: "v-escrow-pinegrove",
-    name: "Pinegrove acquisition escrow",
-    beneficiary: { label: "Pinegrove Holdings", addr: "0x7C09…21A4" },
-    amount: 480000.0,
-    condition: "Oracle · Pyth title transfer",
-    status: "dormant",
-    statusLabel: "Dormant",
-    nextAction: "Awaiting oracle",
-    nextDays: null,
-  },
-  {
-    id: "v-grant-noor",
-    name: "Noor — research grant vesting",
-    beneficiary: { label: "Noor Haidari", addr: "0x44E1…0B2C" },
-    amount: 36000.0,
-    condition: "Vesting · monthly · 24 mo",
-    status: "armed",
-    statusLabel: "Releasing",
-    nextAction: "Next release May 1, 2026",
-    nextDays: 2,
-  },
-  {
-    id: "v-emergency",
-    name: "Emergency fund — partner access",
-    beneficiary: { label: "Maya Okafor", addr: "0xD2F3…918E" },
-    amount: 75000.0,
-    condition: "Co-signer · 2 of 3",
-    status: "warning",
-    statusLabel: "Action required",
-    nextAction: "Co-signer pending review",
-    nextDays: 4,
-  },
-  {
-    id: "v-sunset",
-    name: "Sunset clause — long dormant",
-    beneficiary: { label: "Charity: Open Philanthropy", addr: "0xCC11…7700" },
-    amount: 50000.0,
-    condition: "Heartbeat · 365 days",
-    status: "dormant",
-    statusLabel: "Dormant",
-    nextAction: "Check in by Dec 12, 2026",
-    nextDays: 227,
-  },
-];
+const PUSD_SCALE = 10 ** MOCK_PUSD_DECIMALS;
+
+function formatInterval(seconds: bigint): string {
+  const s = Number(seconds);
+  if (s >= 86400) {
+    const days = Math.round(s / 86400);
+    return `Heartbeat · ${days} ${days === 1 ? "day" : "days"}`;
+  }
+  if (s >= 3600) {
+    const hours = Math.round(s / 3600);
+    return `Heartbeat · ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  const mins = Math.max(1, Math.round(s / 60));
+  return `Heartbeat · ${mins} ${mins === 1 ? "minute" : "minutes"}`;
+}
+
+function formatDateLong(unixSec: number): string {
+  return new Date(unixSec * 1000).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function toDisplay(v: OnChainVault, nowSec: number): DisplayVault {
+  const expiry = Number(v.lastHeartbeat) + Number(v.heartbeatInterval);
+  const expired = nowSec > expiry;
+
+  let status: PipStatus;
+  let statusLabel: string;
+  let nextAction: string;
+  let nextDays: number | null;
+
+  if (v.status === "active") {
+    if (expired) {
+      status = "warning";
+      statusLabel = "Triggered";
+      nextAction = "Heartbeat expired — anyone may claim";
+      nextDays = null;
+    } else {
+      status = "armed";
+      statusLabel = "Armed";
+      nextAction = `Check in by ${formatDateLong(expiry)}`;
+      nextDays = Math.ceil((expiry - nowSec) / 86400);
+    }
+  } else if (v.status === "claimed") {
+    status = "released";
+    statusLabel = "Released";
+    nextAction = "—";
+    nextDays = null;
+  } else {
+    status = "dormant";
+    statusLabel = "Cancelled";
+    nextAction = "—";
+    nextDays = null;
+  }
+
+  return {
+    key: v.publicKey.toBase58(),
+    vaultId: v.vaultId.toString(),
+    name: v.name || `Vault #${v.vaultId.toString()}`,
+    beneficiaryAddr: truncateAddress(v.beneficiary.toBase58()),
+    amount: Number(v.amount) / PUSD_SCALE,
+    condition: formatInterval(v.heartbeatInterval),
+    status,
+    statusLabel,
+    nextAction,
+    nextDays,
+  };
+}
 
 function SummaryCell({
   label,
@@ -119,13 +124,63 @@ function SummaryCell({
   );
 }
 
+function EmptyState() {
+  return (
+    <div style={{ padding: "80px 0", borderBottom: "1px solid var(--rule)" }}>
+      <p
+        className="body"
+        style={{ margin: 0, marginBottom: 20, color: "var(--ink)" }}
+      >
+        No vaults yet. Create your first vault to begin.
+      </p>
+      <Link href="/vaults/new" className="btn">
+        Create vault
+      </Link>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { wallets } = useSolanaWallets();
   const address = wallets[0]?.address;
-  const { program } = useQuiesceProgram();
+  const { vaults, isLoading } = useUserVaults();
+  const { balance: pusdBalanceBaseUnits } = useUserPusdBalance();
+  const walletPusd =
+    pusdBalanceBaseUnits !== null
+      ? Number(pusdBalanceBaseUnits) / PUSD_SCALE
+      : null;
 
-  const totalHeld = VAULTS.reduce((s, v) => s + v.amount, 0);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const display = vaults.map((v) => toDisplay(v, nowSec));
+
+  const activeVaults = vaults.filter((v) => v.status === "active");
+  const totalHeld = activeVaults.reduce(
+    (s, v) => s + Number(v.amount) / PUSD_SCALE,
+    0
+  );
+  const heartbeatsDue30d = activeVaults.filter((v) => {
+    const expiry = Number(v.lastHeartbeat) + Number(v.heartbeatInterval);
+    const remaining = expiry - nowSec;
+    return remaining > 0 && remaining < 30 * 86400;
+  }).length;
+  const releasedToDate = vaults
+    .filter((v) => v.status === "claimed")
+    .reduce((s, v) => s + Number(v.amount) / PUSD_SCALE, 0);
+
+  const metaText = isLoading
+    ? "Loading from Solana devnet…"
+    : `${activeVaults.length} active · ${vaults.length} total`;
+  const metaLine = (
+    <>
+      <div>{metaText}</div>
+      {walletPusd !== null && (
+        <div style={{ marginTop: 4, color: "var(--ink-2)" }}>
+          Wallet · {fmtUSD(walletPusd)} PUSD
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div data-screen-label="Dashboard">
@@ -135,7 +190,7 @@ export default function DashboardPage() {
         <PageHeader
           eyebrow={address ? `Account · ${truncateAddress(address)}` : undefined}
           title="Vaults"
-          meta={`${VAULTS.length} active · last sync 12:04 PM PT`}
+          meta={metaLine}
           action={
             <Link href="/vaults/new" className="btn">
               Create vault
@@ -143,92 +198,103 @@ export default function DashboardPage() {
           }
         />
 
+        <FaucetBanner />
+
         <div
           style={{
+            marginTop: 24,
             display: "grid",
             gridTemplateColumns: "repeat(4, 1fr)",
             borderBottom: "1px solid var(--rule-2)",
           }}
         >
-          <SummaryCell label="Total held" value={`${fmtUSD(totalHeld)} PUSD`} />
-          <SummaryCell label="Active vaults" value={String(VAULTS.length)} />
-          <SummaryCell label="Heartbeats due (30d)" value="2" />
+          <SummaryCell
+            label="Total held"
+            value={`${fmtUSD(totalHeld)} PUSD`}
+          />
+          <SummaryCell
+            label="Active vaults"
+            value={String(activeVaults.length)}
+          />
+          <SummaryCell
+            label="Heartbeats due (30d)"
+            value={String(heartbeatsDue30d)}
+          />
           <SummaryCell
             label="Released to date"
-            value={`${fmtUSD(0)} PUSD`}
-            muted
+            value={`${fmtUSD(releasedToDate)} PUSD`}
+            muted={releasedToDate === 0}
           />
         </div>
 
-        <table className="table" style={{ marginTop: 8 }}>
-          <thead>
-            <tr>
-              <th style={{ width: "30%" }}>Vault</th>
-              <th>Beneficiary</th>
-              <th className="num">Amount</th>
-              <th>Condition</th>
-              <th>Status</th>
-              <th>Next action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {VAULTS.map((v) => (
-              <tr
-                key={v.id}
-                style={{ cursor: "pointer" }}
-                onClick={() => router.push(`/vaults/${v.id}`)}
-              >
-                <td>
-                  <div style={{ color: "var(--ink)", fontSize: 15 }}>
-                    {v.name}
-                  </div>
-                  <div className="meta" style={{ marginTop: 4 }}>
-                    {v.id}
-                  </div>
-                </td>
-                <td>
-                  <div style={{ color: "var(--ink)", fontSize: 14.5 }}>
-                    {v.beneficiary.label}
-                  </div>
-                  <div className="addr" style={{ marginTop: 4 }}>
-                    {v.beneficiary.addr}
-                  </div>
-                </td>
-                <td className="num">
-                  <span className="tnum" style={{ fontSize: 15 }}>
-                    {fmtUSD(v.amount)}
-                  </span>
-                  <span className="meta" style={{ marginLeft: 6 }}>
-                    PUSD
-                  </span>
-                </td>
-                <td>
-                  <div style={{ fontSize: 14 }}>{v.condition}</div>
-                </td>
-                <td>
-                  <Pip status={v.status}>{v.statusLabel}</Pip>
-                </td>
-                <td>
-                  <div style={{ fontSize: 14 }}>{v.nextAction}</div>
-                  {v.nextDays !== null && v.nextDays <= 30 && (
-                    <div
-                      className="meta"
-                      style={{
-                        marginTop: 4,
-                        color:
-                          v.nextDays <= 7
-                            ? "var(--accent)"
-                            : "var(--ink-3)",
-                      }}
-                    >
-                      in {v.nextDays} {v.nextDays === 1 ? "day" : "days"}
-                    </div>
-                  )}
-                </td>
+        {!isLoading && vaults.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <table className="table" style={{ marginTop: 8 }}>
+            <thead>
+              <tr>
+                <th style={{ width: "30%" }}>Vault</th>
+                <th>Beneficiary</th>
+                <th className="num">Amount</th>
+                <th>Condition</th>
+                <th>Status</th>
+                <th>Next action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {display.map((v) => (
+                <tr
+                  key={v.key}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => router.push(`/vaults/${v.key}`)}
+                >
+                  <td>
+                    <div style={{ color: "var(--ink)", fontSize: 15 }}>
+                      {v.name}
+                    </div>
+                    <div className="meta" style={{ marginTop: 4 }}>
+                      #{v.vaultId}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="addr">{v.beneficiaryAddr}</div>
+                  </td>
+                  <td className="num">
+                    <span className="tnum" style={{ fontSize: 15 }}>
+                      {fmtUSD(v.amount)}
+                    </span>
+                    <span className="meta" style={{ marginLeft: 6 }}>
+                      PUSD
+                    </span>
+                  </td>
+                  <td>
+                    <div style={{ fontSize: 14 }}>{v.condition}</div>
+                  </td>
+                  <td>
+                    <Pip status={v.status}>{v.statusLabel}</Pip>
+                  </td>
+                  <td>
+                    <div style={{ fontSize: 14 }}>{v.nextAction}</div>
+                    {v.nextDays !== null && v.nextDays <= 30 && (
+                      <div
+                        className="meta"
+                        style={{
+                          marginTop: 4,
+                          color:
+                            v.nextDays <= 7
+                              ? "var(--accent)"
+                              : "var(--ink-3)",
+                        }}
+                      >
+                        in {v.nextDays} {v.nextDays === 1 ? "day" : "days"}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
         <div
           style={{
@@ -240,8 +306,8 @@ export default function DashboardPage() {
           }}
         >
           <div className="meta">
-            All amounts denominated in PUSD. Vault state synchronized from Solana
-            mainnet, slot 287,418,392.
+            All amounts denominated in PUSD. Vault state synchronized from
+            Solana devnet.
           </div>
           <div className="meta">
             <a
@@ -251,11 +317,6 @@ export default function DashboardPage() {
               Export statement →
             </a>
           </div>
-        </div>
-
-        {/* TEMP: remove before demo */}
-        <div className="meta" style={{ marginTop: 40, fontSize: 11, color: 'var(--ink-4)' }}>
-          program: {program ? 'loaded' : 'not loaded'} · {QUIESCE_PROGRAM_ID.slice(0, 7)}…{QUIESCE_PROGRAM_ID.slice(-4)}
         </div>
       </div>
     </div>
