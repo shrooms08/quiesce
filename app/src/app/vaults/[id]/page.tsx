@@ -519,6 +519,14 @@ export default function VaultDetailPage() {
           </div>
         </div>
 
+        {/* Triggered + owner: surface the claim URL so the owner can share it */}
+        {vault.status === "active" && derived.triggered && ownerIsViewer && (
+          <ClaimLinkBlock
+            vaultPda={vault.publicKey.toBase58()}
+            beneficiaryShort={truncateAddress(beneficiaryAddrFull)}
+          />
+        )}
+
         {/* Two columns: condition logic + clock (only for Active state) */}
         {vault.status === "active" && (
           <div
@@ -836,6 +844,95 @@ function ConditionColumn({
           are unavailable.
         </div>
       )}
+    </div>
+  );
+}
+
+function ClaimLinkBlock({
+  vaultPda,
+  beneficiaryShort,
+}: {
+  vaultPda: string;
+  beneficiaryShort: string;
+}) {
+  const [origin, setOrigin] = useState<string>("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
+
+  const claimUrl = origin ? `${origin}/claim/${vaultPda}` : `/claim/${vaultPda}`;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(claimUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore — copy not available; user can select the text manually
+    }
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 32,
+        padding: 24,
+        background: "var(--paper-2)",
+        border: "1px solid var(--rule-2)",
+        borderLeft: "3px solid var(--accent)",
+        borderRadius: 4,
+      }}
+    >
+      <div className="h-section" style={{ marginBottom: 10 }}>
+        Beneficiary actions
+      </div>
+      <p
+        className="body-sm"
+        style={{ margin: 0, color: "var(--ink)", maxWidth: "62ch" }}
+      >
+        The trigger window has opened. Share this link with{" "}
+        <span className="addr" style={{ fontSize: 13 }}>
+          {beneficiaryShort}
+        </span>{" "}
+        to release the funds. Anyone who follows the link can sign the release
+        transaction; the funds always go to the configured beneficiary.
+      </p>
+      <div
+        style={{
+          marginTop: 14,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <code
+          className="addr"
+          style={{
+            fontSize: 12,
+            padding: "8px 12px",
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 3,
+            wordBreak: "break-all",
+            flex: "1 1 320px",
+            maxWidth: "100%",
+          }}
+        >
+          {claimUrl}
+        </code>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={handleCopy}
+          type="button"
+        >
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
     </div>
   );
 }
