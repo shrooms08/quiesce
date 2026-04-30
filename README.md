@@ -16,7 +16,7 @@ PUSD is also the first major Shariah-compliant stablecoin (issued by Palm Azgar 
 
 ## Status
 
-Hackathon submission for **Palm USD × Superteam UAE**, April 2026. Working prototype on Solana devnet — five program instructions deployed, eight integration tests passing, full end-to-end flow exercised in the browser (faucet → create vault → check in / cancel / let trigger → claim).
+Hackathon submission for the **Palm USD side track of the Frontier Hackathon (organized with Superteam UAE)**, April 2026. Working prototype on Solana devnet — five program instructions deployed, eight integration tests passing, full end-to-end flow exercised in the browser (faucet → create vault → check in / cancel / let trigger → claim).
 
 ## Architecture
 
@@ -46,6 +46,8 @@ cd app && pnpm install && pnpm dev                        # http://localhost:300
 You'll need `app/.env.local` with `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_SOLANA_RPC_URL`, `FAUCET_KEYPAIR_BASE58`, and `FAUCET_AMOUNT_BASE_UNITS`. See `scripts/deploy-mock-pusd.ts` for the mock-mint deploy script and `app/src/app/api/faucet/route.ts` for the faucet route.
 
 ## Demo flow
+
+A hosted public version is planned. Until then, follow the Local development steps to run the demo locally; a recorded walkthrough is included in the hackathon submission.
 
 1. Visit `http://localhost:3000`. Click **Launch app**.
 2. Sign in with email or Google. Privy provisions a Solana embedded wallet.
