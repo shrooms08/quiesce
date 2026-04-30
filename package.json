@@ -3,7 +3,8 @@
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "deploy:mock-pusd": "ts-node scripts/deploy-mock-pusd.ts"
+    "deploy:mock-pusd": "ts-node scripts/deploy-mock-pusd.ts",
+    "sync:idl": "./scripts/sync-idl.sh"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1"

@@ -1,103 +1,222 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { TopBar } from "@/components/chrome/TopBar";
+import { Footer } from "@/components/chrome/Footer";
+import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
+
+function UseCase({
+  number,
+  eyebrow,
+  title,
+  body,
+  example,
+}: {
+  number: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+  example: string;
+}) {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "120px 1fr 1.1fr",
+        gap: 64,
+        padding: "56px 0",
+        borderTop: "1px solid var(--rule-2)",
+      }}
+    >
+      <div>
+        <div className="serif" style={{ fontSize: 36, color: "var(--ink-3)", lineHeight: 1 }}>
+          {number}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <div className="h-section" style={{ marginTop: 18 }}>
+          {eyebrow}
+        </div>
+      </div>
+      <div>
+        <div className="h-2">{title}</div>
+      </div>
+      <div>
+        <p className="body" style={{ marginTop: 0 }}>
+          {body}
+        </p>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--rule)" }}>
+          <div className="meta" style={{ marginBottom: 6 }}>
+            EXAMPLE CONDITION
+          </div>
+          <div
+            className="addr"
+            style={{ color: "var(--ink)", fontSize: 13.5, lineHeight: 1.5 }}
+          >
+            {example}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConstraintRow({
+  children,
+  last,
+}: {
+  children: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        padding: "22px 0",
+        borderBottom: last ? "none" : "1px solid var(--rule)",
+      }}
+    >
+      <p className="body" style={{ margin: 0, maxWidth: "62ch" }}>
+        {children}
+      </p>
+    </div>
+  );
+}
+
+export default function LandingPage() {
+  const { authenticated, login } = usePrivy();
+  const router = useRouter();
+
+  const handleLaunch = () => {
+    if (authenticated) {
+      router.push("/dashboard");
+    } else {
+      login();
+    }
+  };
+
+  return (
+    <div data-screen-label="Landing">
+      <TopBar mode="marketing" />
+
+      {/* Hero */}
+      <section className="shell" style={{ padding: "140px 32px 120px" }}>
+        <div style={{ maxWidth: 980 }}>
+          <div className="h-section" style={{ marginBottom: 28 }}>
+            A protocol for conditional asset release · Solana
+          </div>
+          <h1 className="h-display">
+            Quiesce. The protocol for
+            <br />
+            what comes after.
+          </h1>
+          <p
+            className="body"
+            style={{ marginTop: 36, maxWidth: "62ch", fontSize: 18 }}
+          >
+            PUSD held in programmable vaults on Solana. Dormant by design.
+            Released only when the conditions you set are met &mdash; a missed
+            check-in, a date, an oracle, a co-signer. We hold nothing. We cannot
+            freeze it. We cannot reach in.
+          </p>
+          <div style={{ marginTop: 44, display: "flex", gap: 12, alignItems: "center" }}>
+            <button className="btn btn-accent" onClick={handleLaunch}>
+              Launch app
+            </button>
+            <button className="btn btn-ghost">Read the whitepaper</button>
+          </div>
+        </div>
+      </section>
+
+      <hr className="hr-strong" />
+
+      {/* The mechanism */}
+      <section className="shell" style={{ padding: "120px 32px 40px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 2.2fr",
+            gap: 80,
+            alignItems: "start",
+          }}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <div>
+            <div className="h-section">The mechanism</div>
+          </div>
+          <div>
+            <p
+              className="body"
+              style={{ fontSize: 19, color: "var(--ink)", maxWidth: "52ch" }}
+            >
+              You deposit PUSD into a vault and write its release conditions.
+              The vault then waits. Quiesce holds no keys, takes no custody, and
+              cannot intervene. When the conditions evaluate true on-chain, the
+              vault releases to the address you named.
+            </p>
+            <p className="body" style={{ marginTop: 20, maxWidth: "52ch" }}>
+              The vault is patient by construction. It costs nothing to wait. It
+              will wait longer than you will.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Three use cases */}
+      <section className="shell" style={{ padding: "100px 32px 0" }}>
+        <UseCase
+          number="i."
+          eyebrow="Inheritance"
+          title="A vault that opens only after silence."
+          body="Set a heartbeat — a check-in cadence you commit to. If you miss it for the duration you specify, the vault releases to the people you've named. There is no third party to petition. The chain is the executor."
+          example="If 90 days pass without a check-in, release 100% to 0xA1B2…F4D9."
+        />
+        <UseCase
+          number="ii."
+          eyebrow="Escrow"
+          title="Held against a condition, not a counterparty."
+          body="Funds held until a specific event clears — an oracle confirmation, a co-signer's signature, a date. Two-party arrangements without a custodian in the middle, settled by code rather than discretion."
+          example="Release 50,000 PUSD to seller upon Pyth oracle confirmation of title transfer."
+        />
+        <UseCase
+          number="iii."
+          eyebrow="Vesting"
+          title="Schedules that cannot be edited mid-stream."
+          body="Recurring releases on a fixed cadence to a fixed beneficiary. Useful for grants, retainers, multi-year payouts, and anywhere the stability of the schedule is the product."
+          example="Release 8,333.33 PUSD on the first of each month for thirty-six months."
+        />
+      </section>
+
+      {/* What we cannot do */}
+      <section className="shell" style={{ padding: "140px 32px 40px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 2.2fr",
+            gap: 80,
+            alignItems: "start",
+          }}
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <div className="h-section">What we cannot do</div>
+          <div>
+            <ConstraintRow>
+              We cannot freeze a vault. PUSD is non-freezable. Once deposited,
+              the funds are governed entirely by the conditions you wrote.
+            </ConstraintRow>
+            <ConstraintRow>
+              We cannot reverse a release. When conditions evaluate true, the
+              transfer is final on the next block.
+            </ConstraintRow>
+            <ConstraintRow>
+              We cannot recover keys. There is no support channel that returns
+              access. If you need recovery, design it into the vault as a
+              co-signer or a successor key.
+            </ConstraintRow>
+            <ConstraintRow last>
+              We cannot upgrade the program against you. The on-chain program
+              is immutable. New versions are opt-in by deploying a new vault.
+            </ConstraintRow>
+          </div>
+        </div>
+      </section>
+
+      <Footer />
     </div>
   );
 }
