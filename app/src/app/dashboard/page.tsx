@@ -136,6 +136,13 @@ function EmptyState() {
       <Link href="/vaults/new" className="btn">
         Create vault
       </Link>
+      <div className="meta" style={{ marginTop: 16, color: "var(--ink-2)" }}>
+        Or{" "}
+        <Link href="/agent" style={{ color: "var(--accent)" }}>
+          describe what you want to a Quiesce agent
+        </Link>{" "}
+        →
+      </div>
     </div>
   );
 }

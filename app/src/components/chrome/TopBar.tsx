@@ -17,6 +17,7 @@ const NAV_MARKETING = [
 const NAV_APP = [
   { id: "dashboard", label: "Vaults", href: "/dashboard" },
   { id: "activity", label: "Activity", href: "#" },
+  { id: "agent", label: "Agent", href: "/agent" },
   { id: "docs", label: "Docs", href: "#" },
 ];
 
