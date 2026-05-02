@@ -267,6 +267,54 @@ body {
   padding: 24px;
 }
 
+/* Landing — four-step "How it works" grid. Desktop: 4 columns.
+ * Below 768px: stack vertically. Cards style themselves; this only
+ * controls the layout. */
+.howitworks-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+/* Landing — eyebrow/body editorial pair. Desktop: narrow eyebrow column
+ * + wider body column. Below 768px: stack so the eyebrow sits above the
+ * body with comfortable spacing instead of getting squeezed into a
+ * vertically-wrapping label. */
+.editorial-pair {
+  display: grid;
+  grid-template-columns: 1fr 2.2fr;
+  gap: 80px;
+  align-items: start;
+}
+
+/* Landing — status footer two-column block. Below 768px: stack so the
+ * monospace addresses get full width and don't force horizontal scroll. */
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+}
+
+@media (max-width: 768px) {
+  .howitworks-grid {
+    grid-template-columns: 1fr;
+  }
+  .editorial-pair {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .status-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  /* Hero display headline can overflow at 375px — clamp's min of 48px is
+   * still wide for "what comes after." in Fraunces. Step it down for the
+   * narrow viewport. */
+  .h-display {
+    font-size: clamp(36px, 11vw, 48px);
+  }
+}
+
 /* Agent chat — markdown rendering for assistant messages */
 .agent-md p { margin: 0 0 12px 0; line-height: 1.55; }
 .agent-md p:last-child { margin-bottom: 0; }

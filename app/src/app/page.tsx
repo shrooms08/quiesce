@@ -1,80 +1,54 @@
 "use client";
 
 import { TopBar } from "@/components/chrome/TopBar";
-import { Footer } from "@/components/chrome/Footer";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
+import { QUIESCE_PROGRAM_ID, MOCK_PUSD_MINT } from "@/lib/constants";
 
-function UseCase({
+const GITHUB_URL = "https://github.com/shrooms08/quiesce";
+
+function Step({
   number,
-  eyebrow,
   title,
   body,
-  example,
 }: {
   number: string;
-  eyebrow: string;
   title: string;
   body: string;
-  example: string;
 }) {
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "120px 1fr 1.1fr",
-        gap: 64,
-        padding: "56px 0",
-        borderTop: "1px solid var(--rule-2)",
+        background: "var(--paper-2)",
+        padding: "28px 26px",
+        borderRadius: 4,
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
       }}
     >
-      <div>
-        <div className="serif" style={{ fontSize: 36, color: "var(--ink-3)", lineHeight: 1 }}>
-          {number}
-        </div>
-        <div className="h-section" style={{ marginTop: 18 }}>
-          {eyebrow}
-        </div>
+      <div
+        className="serif"
+        style={{ fontSize: 28, color: "var(--ink-3)", lineHeight: 1 }}
+      >
+        {number}
       </div>
-      <div>
-        <div className="h-2">{title}</div>
+      <div
+        className="serif"
+        style={{
+          fontSize: 18,
+          color: "var(--ink)",
+          lineHeight: 1.25,
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {title}
       </div>
-      <div>
-        <p className="body" style={{ marginTop: 0 }}>
-          {body}
-        </p>
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--rule)" }}>
-          <div className="meta" style={{ marginBottom: 6 }}>
-            EXAMPLE CONDITION
-          </div>
-          <div
-            className="addr"
-            style={{ color: "var(--ink)", fontSize: 13.5, lineHeight: 1.5 }}
-          >
-            {example}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConstraintRow({
-  children,
-  last,
-}: {
-  children: React.ReactNode;
-  last?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        padding: "22px 0",
-        borderBottom: last ? "none" : "1px solid var(--rule)",
-      }}
-    >
-      <p className="body" style={{ margin: 0, maxWidth: "62ch" }}>
-        {children}
+      <p
+        className="body-sm"
+        style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.55 }}
+      >
+        {body}
       </p>
     </div>
   );
@@ -92,6 +66,14 @@ export default function LandingPage() {
     }
   };
 
+  const handleAgent = () => {
+    if (authenticated) {
+      router.push("/agent");
+    } else {
+      login();
+    }
+  };
+
   return (
     <div data-screen-label="Landing">
       <TopBar mode="marketing" />
@@ -100,7 +82,7 @@ export default function LandingPage() {
       <section className="shell" style={{ padding: "140px 32px 120px" }}>
         <div style={{ maxWidth: 980 }}>
           <div className="h-section" style={{ marginBottom: 28 }}>
-            A protocol for conditional asset release · Solana
+            Programmable on-chain inheritance · Solana · PUSD
           </div>
           <h1 className="h-display">
             Quiesce. The protocol for
@@ -111,112 +93,209 @@ export default function LandingPage() {
             className="body"
             style={{ marginTop: 36, maxWidth: "62ch", fontSize: 18 }}
           >
-            PUSD held in programmable vaults on Solana. Dormant by design.
-            Released only when the conditions you set are met &mdash; a missed
-            check-in, a date, an oracle, a co-signer. We hold nothing. We cannot
-            freeze it. We cannot reach in.
+            A vault owner deposits PUSD and commits to a heartbeat — a
+            check-in cadence. While they keep checking in, the vault is
+            dormant. If they stop, anyone can release the full balance to the
+            named beneficiary on the next confirmed block. Quiesce holds no
+            keys and cannot intervene.
           </p>
-          <div style={{ marginTop: 44, display: "flex", gap: 12, alignItems: "center" }}>
+          <div
+            style={{
+              marginTop: 44,
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             <button className="btn btn-accent" onClick={handleLaunch}>
               Launch app
             </button>
-            <button className="btn btn-ghost">Read the whitepaper</button>
+            <a
+              className="btn btn-ghost"
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              View on GitHub
+            </a>
           </div>
         </div>
       </section>
 
       <hr className="hr-strong" />
 
-      {/* The mechanism */}
+      {/* How it works — four-step horizontal sequence */}
       <section className="shell" style={{ padding: "120px 32px 40px" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 2.2fr",
-            gap: 80,
-            alignItems: "start",
-          }}
-        >
+        <div className="editorial-pair" style={{ marginBottom: 56 }}>
+          <div className="h-section">How it works</div>
+          <p
+            className="body"
+            style={{ fontSize: 19, color: "var(--ink)", maxWidth: "52ch", margin: 0 }}
+          >
+            Four steps. The owner sets terms, keeps checking in, then —
+            either by their own choice or by missing a check-in — the vault
+            settles. Each transition is on-chain, witnessable, and final.
+          </p>
+        </div>
+        <div className="howitworks-grid">
+          <Step
+            number="01"
+            title="Set up the vault."
+            body="Owner deposits PUSD, names a beneficiary, and configures a heartbeat — a check-in cadence they commit to."
+          />
+          <Step
+            number="02"
+            title="Check in to keep it dormant."
+            body="While the owner heartbeats on schedule, the vault is theirs. They can cancel any time and recover the funds."
+          />
+          <Step
+            number="03"
+            title="Heartbeat expires."
+            body="If they stop checking in, the trigger window opens. The owner can no longer cancel."
+          />
+          <Step
+            number="04"
+            title="Anyone releases the funds."
+            body="A permissionless claim transfers the full balance atomically to the named beneficiary. Quiesce holds no keys and cannot intervene."
+          />
+        </div>
+      </section>
+
+      {/* Why PUSD specifically */}
+      <section className="shell" style={{ padding: "120px 32px 40px" }}>
+        <div className="editorial-pair">
+          <div className="h-section">Why PUSD specifically</div>
           <div>
-            <div className="h-section">The mechanism</div>
+            <p className="body" style={{ marginTop: 0, maxWidth: "52ch" }}>
+              Most stablecoins — USDC, USDT — ship with a freeze authority.
+              The issuer can disable a token account at will. That capability
+              defeats the point of an inheritance protocol: a bequest must
+              execute when its conditions are met, regardless of jurisdiction,
+              sanctions exposure, or institutional pressure.
+            </p>
+            <p className="body" style={{ marginTop: 20, maxWidth: "52ch" }}>
+              PUSD has no freeze function, no blacklist, no pause mechanism.
+              Once issued, the tokens are governed entirely by the on-chain
+              logic that holds them. That is what makes Quiesce&apos;s
+              settlement guarantee a property of the protocol, not a marketing
+              claim.
+            </p>
           </div>
+        </div>
+      </section>
+
+      {/* Inheritance angle */}
+      <section className="shell" style={{ padding: "120px 32px 40px" }}>
+        <div className="editorial-pair">
+          <div className="h-section">Built for inheritance that has to work</div>
+          <div>
+            <p className="body" style={{ marginTop: 0, maxWidth: "52ch" }}>
+              Inheritance carries religious weight in Islamic finance —
+              <em> wasiyyah</em> is a core obligation, and the $3T Islamic
+              finance market has no native digital inheritance infrastructure.
+              PUSD is the first major Shariah-compliant stablecoin. Quiesce
+              fits that market structurally.
+            </p>
+            <p className="body" style={{ marginTop: 20, maxWidth: "52ch" }}>
+              It is not only for Islamic finance. Crypto-native families,
+              executors, and anyone with assets to bequeath under conditional
+              logic can use the same protocol on the same terms.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Agent CTA */}
+      <section className="shell" style={{ padding: "120px 32px 40px" }}>
+        <div className="editorial-pair">
+          <div className="h-section">Try the agent</div>
           <div>
             <p
               className="body"
-              style={{ fontSize: 19, color: "var(--ink)", maxWidth: "52ch" }}
+              style={{
+                marginTop: 0,
+                maxWidth: "52ch",
+                fontSize: 19,
+                color: "var(--ink)",
+              }}
             >
-              You deposit PUSD into a vault and write its release conditions.
-              The vault then waits. Quiesce holds no keys, takes no custody, and
-              cannot intervene. When the conditions evaluate true on-chain, the
-              vault releases to the address you named.
+              Quiesce ships with a conversational agent that helps you set up
+              vaults, find ones designated for you, and answer questions about
+              the protocol.
             </p>
-            <p className="body" style={{ marginTop: 20, maxWidth: "52ch" }}>
-              The vault is patient by construction. It costs nothing to wait. It
-              will wait longer than you will.
-            </p>
+            <div style={{ marginTop: 28 }}>
+              <button className="btn" onClick={handleAgent}>
+                Open the agent
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Three use cases */}
-      <section className="shell" style={{ padding: "100px 32px 0" }}>
-        <UseCase
-          number="i."
-          eyebrow="Inheritance"
-          title="A vault that opens only after silence."
-          body="Set a heartbeat — a check-in cadence you commit to. If you miss it for the duration you specify, the vault releases to the people you've named. There is no third party to petition. The chain is the executor."
-          example="If 90 days pass without a check-in, release 100% to 0xA1B2…F4D9."
-        />
-        <UseCase
-          number="ii."
-          eyebrow="Escrow"
-          title="Held against a condition, not a counterparty."
-          body="Funds held until a specific event clears — an oracle confirmation, a co-signer's signature, a date. Two-party arrangements without a custodian in the middle, settled by code rather than discretion."
-          example="Release 50,000 PUSD to seller upon Pyth oracle confirmation of title transfer."
-        />
-        <UseCase
-          number="iii."
-          eyebrow="Vesting"
-          title="Schedules that cannot be edited mid-stream."
-          body="Recurring releases on a fixed cadence to a fixed beneficiary. Useful for grants, retainers, multi-year payouts, and anywhere the stability of the schedule is the product."
-          example="Release 8,333.33 PUSD on the first of each month for thirty-six months."
-        />
-      </section>
-
-      {/* What we cannot do */}
-      <section className="shell" style={{ padding: "140px 32px 40px" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 2.2fr",
-            gap: 80,
-            alignItems: "start",
-          }}
-        >
-          <div className="h-section">What we cannot do</div>
+      {/* Status / footer */}
+      <footer
+        style={{
+          borderTop: "1px solid var(--rule)",
+          marginTop: 120,
+        }}
+      >
+        <div className="shell status-grid" style={{ padding: "48px 32px" }}>
           <div>
-            <ConstraintRow>
-              We cannot freeze a vault. PUSD is non-freezable. Once deposited,
-              the funds are governed entirely by the conditions you wrote.
-            </ConstraintRow>
-            <ConstraintRow>
-              We cannot reverse a release. When conditions evaluate true, the
-              transfer is final on the next block.
-            </ConstraintRow>
-            <ConstraintRow>
-              We cannot recover keys. There is no support channel that returns
-              access. If you need recovery, design it into the vault as a
-              co-signer or a successor key.
-            </ConstraintRow>
-            <ConstraintRow last>
-              We cannot upgrade the program against you. The on-chain program
-              is immutable. New versions are opt-in by deploying a new vault.
-            </ConstraintRow>
+            <div
+              className="wordmark"
+              style={{ display: "block", marginBottom: 14 }}
+            >
+              Quiesce
+            </div>
+            <div className="meta" style={{ maxWidth: "44ch" }}>
+              Hackathon submission · Palm USD side track of the Frontier
+              Hackathon · April 2026.
+            </div>
+            <div className="meta" style={{ marginTop: 10, maxWidth: "44ch" }}>
+              Built by Minos.
+            </div>
+          </div>
+          <div>
+            <div className="h-section" style={{ marginBottom: 14 }}>
+              On-chain · devnet
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <div className="meta" style={{ marginBottom: 4 }}>
+                  Program
+                </div>
+                <div className="addr" style={{ wordBreak: "break-all" }}>
+                  {QUIESCE_PROGRAM_ID}
+                </div>
+              </div>
+              <div>
+                <div className="meta" style={{ marginBottom: 4 }}>
+                  Mock PUSD mint
+                </div>
+                <div className="addr" style={{ wordBreak: "break-all" }}>
+                  {MOCK_PUSD_MINT}
+                </div>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <a
+                  href={GITHUB_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  style={{
+                    fontSize: 14,
+                    color: "var(--ink-2)",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 2,
+                  }}
+                >
+                  github.com/shrooms08/quiesce
+                </a>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
-
-      <Footer />
+      </footer>
     </div>
   );
 }
