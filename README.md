@@ -2,6 +2,10 @@
 
 Programmable on-chain inheritance for stablecoin-denominated wealth, built on Solana with Palm USD.
 
+**Live demo:** https://quiesce-shrooms08s-projects.vercel.app
+
+> Running on Solana devnet with mock PUSD. Use the in-app faucet to get test tokens.
+
 ## What it does
 
 A vault owner deposits PUSD and configures a heartbeat — a check-in cadence they commit to (60 seconds for the demo, 90 days in practice). While they keep checking in, the vault is dormant. If they stop, the heartbeat expires and any signed-in user can trigger a release; the program transfers the full balance to the configured beneficiary's wallet, atomically, on the next confirmed block. The owner can also cancel at any time before the heartbeat expires and recover the funds.
@@ -47,7 +51,7 @@ You'll need `app/.env.local` with `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_SOLAN
 
 ## Demo flow
 
-A hosted public version is planned. Until then, follow the Local development steps to run the demo locally; a recorded walkthrough is included in the hackathon submission.
+**Live demo:** https://quiesce-shrooms08s-projects.vercel.app — running on Solana devnet with mock PUSD; use the in-app faucet to get test tokens. A recorded walkthrough is included in the hackathon submission. To run the same flow locally instead, follow the Local development steps above.
 
 1. Visit `http://localhost:3000`. Click **Launch app**.
 2. Sign in with email or Google. Privy provisions a Solana embedded wallet.
