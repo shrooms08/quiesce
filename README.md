@@ -2,10 +2,6 @@
 
 Programmable on-chain inheritance for stablecoin-denominated wealth, built on Solana with Palm USD.
 
-**Live demo:** https://quiesce-shrooms08s-projects.vercel.app
-
-> Running on Solana devnet with mock PUSD. Use the in-app faucet to get test tokens.
-
 ## What it does
 
 A vault owner deposits PUSD and configures a heartbeat — a check-in cadence they commit to (60 seconds for the demo, 90 days in practice). While they keep checking in, the vault is dormant. If they stop, the heartbeat expires and any signed-in user can trigger a release; the program transfers the full balance to the configured beneficiary's wallet, atomically, on the next confirmed block. The owner can also cancel at any time before the heartbeat expires and recover the funds.
@@ -47,11 +43,20 @@ anchor build && anchor test --provider.cluster localnet   # 8 integration tests
 cd app && pnpm install && pnpm dev                        # http://localhost:3000
 ```
 
-You'll need `app/.env.local` with `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_SOLANA_RPC_URL`, `FAUCET_KEYPAIR_BASE58`, and `FAUCET_AMOUNT_BASE_UNITS`. See `scripts/deploy-mock-pusd.ts` for the mock-mint deploy script and `app/src/app/api/faucet/route.ts` for the faucet route.
+You'll need `app/.env.local` with `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_SOLANA_RPC_URL`, `FAUCET_KEYPAIR_BASE58`, `FAUCET_AMOUNT_BASE_UNITS`, and `ANTHROPIC_API_KEY` (for the agent). See `scripts/deploy-mock-pusd.ts` for the mock-mint deploy script and `app/src/app/api/faucet/route.ts` for the faucet route.
+
+## Sign-in options
+
+Two paths land you in the same authenticated state:
+
+- **Continue with Google or email** — Privy provisions a Solana embedded wallet on first sign-in. No browser extension required. Best for first-time users.
+- **Connect wallet** — bring an existing Solana wallet (Phantom, Solflare, Backpack, etc.) via the Privy modal's "Connect wallet" option. The connected wallet becomes the owner of any vaults you create.
+
+Both flows produce a usable Solana wallet. Faucet, vault creation, heartbeat, claim, and the AI agent work identically in either mode. Enabling the `Wallet` login method requires it to also be enabled in the Privy dashboard for the configured `NEXT_PUBLIC_PRIVY_APP_ID`.
 
 ## Demo flow
 
-**Live demo:** https://quiesce-shrooms08s-projects.vercel.app — running on Solana devnet with mock PUSD; use the in-app faucet to get test tokens. A recorded walkthrough is included in the hackathon submission. To run the same flow locally instead, follow the Local development steps above.
+A hosted public version is planned. Until then, follow the Local development steps to run the demo locally; a recorded walkthrough is included in the hackathon submission.
 
 1. Visit `http://localhost:3000`. Click **Launch app**.
 2. Sign in with email or Google. Privy provisions a Solana embedded wallet.

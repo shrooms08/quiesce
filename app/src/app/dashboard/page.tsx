@@ -11,6 +11,7 @@ import { fmtUSD, truncateAddress } from "@/lib/format";
 import { MOCK_PUSD_DECIMALS } from "@/lib/constants";
 import { useUserVaults, type OnChainVault } from "@/hooks/useUserVaults";
 import { useUserPusdBalance } from "@/hooks/useUserPusdBalance";
+import { BeneficiarySection } from "@/components/BeneficiarySection";
 
 type DisplayVault = {
   key: string;
@@ -303,9 +304,11 @@ export default function DashboardPage() {
           </table>
         )}
 
+        <BeneficiarySection />
+
         <div
           style={{
-            marginTop: 32,
+            marginTop: 64,
             paddingTop: 24,
             borderTop: "1px solid var(--rule)",
             display: "flex",

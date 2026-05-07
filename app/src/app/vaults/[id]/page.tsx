@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { TopBar } from "@/components/chrome/TopBar";
 import { BackLink } from "@/components/chrome/BackLink";
 import { Pip } from "@/components/chrome/Pip";
@@ -15,8 +15,10 @@ import { useUserPusdBalance } from "@/hooks/useUserPusdBalance";
 import type { OnChainVault } from "@/hooks/useUserVaults";
 import { buildHeartbeatTx } from "@/lib/transactions/heartbeat";
 import { buildCancelTx } from "@/lib/transactions/cancel";
+import { buildClaimTx } from "@/lib/transactions/claim";
 
 const PUSD_SCALE = 10 ** MOCK_PUSD_DECIMALS;
+const MIN_SOL_LAMPORTS = 0.005 * LAMPORTS_PER_SOL;
 
 type ActionState =
   | { kind: "idle" }
@@ -310,6 +312,10 @@ export default function VaultDetailPage() {
 
   const ownerIsViewer =
     !!vault && !!wallet?.address && vault.owner.toBase58() === wallet.address;
+  const viewerIsBeneficiary =
+    !!vault &&
+    !!wallet?.address &&
+    vault.beneficiary.toBase58() === wallet.address;
 
   // ----------------- actions -----------------
 
@@ -383,6 +389,44 @@ export default function VaultDetailPage() {
       setAction({
         kind: "error",
         message: `Cancel failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      });
+    }
+  }
+
+  async function handleRelease() {
+    if (!program || !wallet?.address || !vault) return;
+    setAction({ kind: "running", label: "Checking SOL balance…" });
+    try {
+      const caller = new PublicKey(wallet.address);
+      const sol = await connection.getBalance(caller);
+      if (sol < MIN_SOL_LAMPORTS) {
+        setAction({
+          kind: "error",
+          message:
+            "Wallet has less than 0.005 SOL. Top up devnet SOL and retry.",
+        });
+        return;
+      }
+      setAction({ kind: "running", label: "Building transaction…" });
+      const { tx } = await buildClaimTx({
+        program,
+        connection,
+        caller,
+        vaultPda: vault.publicKey,
+        vault,
+      });
+      setAction({ kind: "running", label: "Awaiting signature…" });
+      await signAndSend(tx);
+      setAction({ kind: "running", label: "Confirmed. Refreshing…" });
+      refresh();
+      refreshPusd();
+      setTimeout(() => setAction({ kind: "idle" }), 800);
+    } catch (e) {
+      setAction({
+        kind: "error",
+        message: `Release failed: ${
           e instanceof Error ? e.message : String(e)
         }`,
       });
@@ -543,9 +587,11 @@ export default function VaultDetailPage() {
               triggered={derived.triggered}
               heartbeatValid={derived.heartbeatValid}
               ownerIsViewer={ownerIsViewer}
+              viewerIsBeneficiary={viewerIsBeneficiary}
               action={action}
               onCheckIn={handleCheckIn}
               onCancel={handleCancel}
+              onRelease={handleRelease}
               intervalSec={derived.intervalSec}
               beneficiary={beneficiaryAddrFull}
               amountPusd={amountPusd}
@@ -716,9 +762,11 @@ function ConditionColumn({
   triggered,
   heartbeatValid,
   ownerIsViewer,
+  viewerIsBeneficiary,
   action,
   onCheckIn,
   onCancel,
+  onRelease,
   intervalSec,
   beneficiary,
   amountPusd,
@@ -727,15 +775,18 @@ function ConditionColumn({
   triggered: boolean;
   heartbeatValid: boolean;
   ownerIsViewer: boolean;
+  viewerIsBeneficiary: boolean;
   action: ActionState;
   onCheckIn: () => void;
   onCancel: () => void;
+  onRelease: () => void;
   intervalSec: number;
   beneficiary: string;
   amountPusd: number;
 }) {
   const running = action.kind === "running";
   const showActions = ownerIsViewer && heartbeatValid;
+  const showReleaseAction = triggered && viewerIsBeneficiary;
 
   return (
     <div>
@@ -803,7 +854,36 @@ function ConditionColumn({
         </div>
       )}
 
-      {triggered && (
+      {showReleaseAction && (
+        <div
+          style={{
+            marginTop: 24,
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            className="btn btn-accent"
+            onClick={onRelease}
+            disabled={running}
+            style={{ opacity: running ? 0.6 : 1 }}
+          >
+            Release {fmtUSD(amountPusd)} PUSD to {truncateAddress(beneficiary)}
+          </button>
+        </div>
+      )}
+
+      {showReleaseAction && (
+        <div className="meta" style={{ marginTop: 14, maxWidth: "60ch" }}>
+          You are the configured beneficiary. Signing transfers the full balance
+          to your wallet. Network fee ≈ 0.000005 SOL (plus a small ATA rent if
+          you don&apos;t already hold PUSD).
+        </div>
+      )}
+
+      {triggered && !viewerIsBeneficiary && (
         <div className="meta" style={{ marginTop: 18, maxWidth: "48ch" }}>
           If you are the beneficiary, claim from the dedicated claim link.
         </div>
@@ -894,12 +974,14 @@ function ClaimLinkBlock({
         className="body-sm"
         style={{ margin: 0, color: "var(--ink)", maxWidth: "62ch" }}
       >
-        The trigger window has opened. Share this link with{" "}
+        This vault is triggered.{" "}
         <span className="addr" style={{ fontSize: 13 }}>
           {beneficiaryShort}
         </span>{" "}
-        to release the funds. Anyone who follows the link can sign the release
-        transaction; the funds always go to the configured beneficiary.
+        can claim it directly — it appears in their dashboard when they sign in
+        to Quiesce. You can also share the link below if you want to send it
+        manually. The funds always go to the configured beneficiary, regardless
+        of who triggers the release.
       </p>
       <div
         style={{

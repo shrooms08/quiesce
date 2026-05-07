@@ -30,11 +30,22 @@ export function Providers({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={PRIVY_APP_ID as string}
       config={{
-        loginMethods: ["email", "google"],
+        // "wallet" exposes the "Connect wallet" option (Phantom, Solflare,
+        // Backpack, etc. via toSolanaWalletConnectors below). Also enable
+        // "Wallet" in the Privy dashboard or this option won't render.
+        loginMethods: ["email", "google", "wallet"],
         appearance: {
           theme: "light",
           accentColor: "#5A1A1A",
           walletChainType: "solana-only",
+          // Strict whitelist — exact order shown in the picker.
+          walletList: [
+            "phantom",
+            "solflare",
+            "backpack",
+            "coinbase_wallet",
+            "wallet_connect_qr_solana",
+          ],
         },
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
