@@ -56,6 +56,7 @@ function Step({
 }) {
   return (
     <section
+      className="responsive-stack"
       style={{
         display: "grid",
         gridTemplateColumns: "120px 1fr",
@@ -545,7 +546,7 @@ export default function CreateVaultPage() {
             non-freezable; once deposited, it is governed entirely by the
             conditions you set below.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+          <div className="responsive-stack" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
             <Field label="Amount">
               <div
                 style={{
@@ -598,6 +599,7 @@ export default function CreateVaultPage() {
           </p>
 
           <div
+            className="responsive-stack"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
@@ -688,7 +690,7 @@ export default function CreateVaultPage() {
             The destination address is final. Add a label for your records (kept
             client-side only in this release).
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+          <div className="responsive-stack" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
             <Field label="Label (private)">
               <input
                 className="input"

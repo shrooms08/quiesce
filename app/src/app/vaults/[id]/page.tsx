@@ -524,12 +524,14 @@ export default function VaultDetailPage() {
 
         {/* Header */}
         <div
+          className="responsive-stack"
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-end",
             padding: "32px 0 28px",
             borderBottom: "1px solid var(--rule-2)",
+            gap: 24,
           }}
         >
           <div>
@@ -574,6 +576,7 @@ export default function VaultDetailPage() {
         {/* Two columns: condition logic + clock (only for Active state) */}
         {vault.status === "active" && (
           <div
+            className="responsive-stack"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
@@ -670,6 +673,7 @@ export default function VaultDetailPage() {
 
         {/* Definition list — vault parameters */}
         <div
+          className="responsive-stack"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",

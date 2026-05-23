@@ -209,6 +209,7 @@ export default function DashboardPage() {
         <FaucetBanner />
 
         <div
+          className="summary-grid"
           style={{
             marginTop: 24,
             display: "grid",
@@ -307,12 +308,14 @@ export default function DashboardPage() {
         <BeneficiarySection />
 
         <div
+          className="responsive-stack"
           style={{
             marginTop: 64,
             paddingTop: 24,
             borderTop: "1px solid var(--rule)",
             display: "flex",
             justifyContent: "space-between",
+            gap: 12,
           }}
         >
           <div className="meta">

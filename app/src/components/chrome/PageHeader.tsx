@@ -15,12 +15,14 @@ export function PageHeader({
 }) {
   return (
     <div
+      className="responsive-stack"
       style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-end",
         padding: "56px 0 28px",
         borderBottom: "1px solid var(--rule-2)",
+        gap: 16,
       }}
     >
       <div>
