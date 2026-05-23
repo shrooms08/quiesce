@@ -180,6 +180,7 @@ body {
   width: 100%;
 }
 .topnav { display: flex; gap: 28px; align-items: center; }
+.topnav-mobile { display: none; position: relative; }
 .topnav a {
   font-size: 13.5px; color: var(--ink-2);
   text-decoration: none;
@@ -327,8 +328,8 @@ body {
   }
 
   .topbar { padding: 16px 20px; }
-  .topnav { gap: 14px; }
-  .topnav a { font-size: 12.5px; }
+  .topnav-desktop { display: none; }
+  .topnav-mobile { display: flex; align-items: center; }
 
   .h-1 { font-size: 28px; }
   .h-2 { font-size: 22px; }
